@@ -44,7 +44,10 @@ static void *page_start(void *ptr) {
  */
 static int address_in_range(void *start, size_t size, void *ptr) {
 
-  /* TO BE COMPLETED BY THE STUDENT */
+  if ((ptr < start) || (ptr > start + size - 1)) {
+    return 0;
+  } 
+  else return 1;
 }
 
 /* Returns TRUE (non-zero) if the address 'ptr' is in the same page as
@@ -56,7 +59,7 @@ static int address_in_range(void *start, size_t size, void *ptr) {
  */
 static int address_in_page_range(void *start, size_t size, void *ptr) {
   
-  /* TO BE COMPLETED BY THE STUDENT */
+return address_in_range(page_start(ptr), page_start(start + size) + page_size - page_start(ptr), ptr);
 }
 
 /* mprotect requires the start address to be aligned with the page
