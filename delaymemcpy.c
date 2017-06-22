@@ -121,14 +121,45 @@ static pending_copy_t *get_pending_copy(void *ptr) {
    to the standard error process and kill the process.
  */
 static void delay_memcpy_segv_handler(int signum, siginfo_t *info, void *context) {
-  
-  pending_copy_t *pend = get_pending_copy(info->si_addr);
+
+  void *ptr = info->si_addr;
+  pending_copy_t *pend = get_pending_copy(ptr);
+
   if (pend == NULL) {
     write(2, "Segmentation fault!\n", 20);
     raise(SIGKILL);
+  } else {
+    while (pend != NULL) {
+
+      // case 1: ptr is in page that contains src entirely
+      if (address_in_page_range(pend->src, 0, ptr) && address_in_page_range(pend->src + pend->size, 0, ptr)) {
+        memcpy(pend->dest, pend->src, pend->size);
+         // case 2: ptr is in page that contains dst entirely
+      } else if (address_in_page_range(pend->dst, 0, ptr) && address_in_page_range(pend->dst + pend->size, 0, ptr)) {
+        memcpy(pend->dest, pend->src, pend->size);
+        // case 3: ptr is in first page of src
+      } else if (address_in_page_range(pend->src, 0, ptr)) {
+        memcpy(pend->dst, pend->src, page_start(ptr) + page_size - pend->src);
+        // case 4: ptr is in first page of dst
+      } else if (address_in_page_range(pend->dst, 0, ptr)) {
+        memcpy(pend->dst, pend->src, page_start(ptr) + page_size - pend->dst);
+        // case 5: ptr is in last page of src
+      } else if (address_in_page_range(pend->src + pend->size, 0, ptr)) {
+        memcpy(page_start(pend->dst + pend->size), page_start(ptr), pend->src + pend->size - page_start(ptr));
+        // case 6: ptr is in last page of dst
+      } else if (address_in_page_range(pend->dst + pend->size, 0, ptr)) {
+        memcpy(page_start(ptr), page_start(pend->src + pend->size), pend->dst + pend->size - page_start(ptr));
+        // case 7: ptr is within range of src, but not on first or last page
+      } else if (address_in_range(pend->dst, pend->size, ptr)) {
+        memcpy(page_start(ptr), , page_size)
+        // case 6: ptr is within range of dst, but not on first or last page
+      } else if (address_in_range(pend->src, pend->size, ptr)) {
+        memcpy(, page_start(ptr), page_size)
+      } 
+      pend = get_pending_copy(ptr);
+    }
   }
   
-  /* TO BE COMPLETED BY THE STUDENT */
 }
 
 /* Initializes the data structures and global variables used in the
