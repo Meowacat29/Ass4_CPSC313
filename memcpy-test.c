@@ -102,19 +102,35 @@ int main(void) {
   printf("Destination: ");
   print_array(copy + 0x400, 20);  // Triggers copy of first page only
 
-// three pages -- middle page
+// three pages -- middle page first
   printf("\nCopying one middle page data...\n");
   random_array(array, 0x3000);
-  printf("Before copy: ");
+  printf("Before copy:\n2nd page: ");
   print_array(array + 0x1300, 20);
+  printf("1st page: ");
+  print_array(array + 0x300, 20);
+  printf("3rd page: ");
+  print_array(array + 0x2300, 20);
 
   delay_memcpy(copy, array, 0x3000);
-  printf("After copy: ");
+  printf("After copy:\n2nd page: ");
   print_array(array + 0x1300, 20);
+  printf("1st page: ");
+  print_array(array + 0x300, 20);
+  printf("3rd page: ");
+  print_array(array + 0x2300, 20);
+
   printf("Destination:\n2nd page: ");
   print_array(copy + 0x1300, 20); // Triggers copy of second page
+  printf("1st page: ");
+  print_array(copy + 0x300, 20);
+  printf("3rd page: ");
+  print_array(copy + 0x2300, 20);
 
 //
+
+// induce seg fault
+  *(char *)0 = 0;
   /* MORE TESTS COME HERE */
   
   return 0;
