@@ -132,19 +132,19 @@ static void delay_memcpy_segv_handler(int signum, siginfo_t *info, void *context
     while (pend != NULL) {
       // case 1: ptr is in page that contains src entirely
       if (address_in_page_range(pend->src, 0, ptr) && address_in_page_range(pend->src + pend->size, 0, ptr)) {
-         mprotect_full_page(pend->src, pend->size, PROT_READ|PROT_WRITE);
-         mprotect_full_page(pend->dst, pend->size, PROT_READ|PROT_WRITE);
+         mprotect_full_page(page_start(pend->src), pend->size, PROT_READ|PROT_WRITE);
+         mprotect_full_page(page_start(pend->dst), pend->size, PROT_READ|PROT_WRITE);
          pend->src = NULL;
          memcpy(pend->dst, pend->src, pend->size);
          // case 2: ptr is in page that contains dst entirely
       } else if (address_in_page_range(pend->dst, 0, ptr) && address_in_page_range(pend->dst + pend->size, 0, ptr)) {
-        mprotect_full_page(pend->src, pend->size, PROT_READ|PROT_WRITE);
-        mprotect_full_page(pend->dst, pend->size, PROT_READ|PROT_WRITE);
+        mprotect_full_page(page_start(pend->src), pend->size, PROT_READ|PROT_WRITE);
+        mprotect_full_page(page_start(pend->dst), pend->size, PROT_READ|PROT_WRITE);
         pend->src = NULL;
         memcpy(pend->dst, pend->src, pend->size);
         // case 3: ptr is in first page of src
       } else if (address_in_page_range(pend->src, 0, ptr)) {
-        free_copy(pend->src, 0, PROT_READ|PROT_WRITE);
+        mprotect_full_page()
         memcpy(pend->dst, pend->src, page_start(ptr) + page_size - pend->src);
         // case 4: ptr is in first page of dst
       } else if (address_in_page_range(pend->dst, 0, ptr)) {
@@ -157,10 +157,10 @@ static void delay_memcpy_segv_handler(int signum, siginfo_t *info, void *context
         memcpy(page_start(ptr), page_start(pend->src + pend->size), pend->dst + pend->size - page_start(ptr));
         // case 7: ptr is within range of src, but not on first or last page
       } else if (address_in_range(pend->dst, pend->size, ptr)) {
-        memcpy(page_start(ptr), page_start(ptr) - pend->src + pend->dst, page_size)
+        memcpy(page_start(ptr), page_start(ptr) - pend->src + pend->dst, page_size);
         // case 8: ptr is within range of dst, but not on first or last page
       } else if (address_in_range(pend->src, pend->size, ptr)) {
-        memcpy(page_start(ptr) - pend->dst + pend->src, page_start(ptr), page_size)
+        memcpy(page_start(ptr) - pend->dst + pend->src, page_start(ptr), page_size);
       } 
       pend = get_pending_copy(ptr);
     }
