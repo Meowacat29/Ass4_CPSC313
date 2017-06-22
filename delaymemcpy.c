@@ -210,7 +210,7 @@ void initialize_delay_memcpy_data(void) {
  */
 void *delay_memcpy(void *dst, void *src, size_t size) {
 
-  if(add_pending_copy(dst, src, size)) {
+  if(!add_pending_copy(dst, src, size)) {
     memcpy(dst, src, size);
   } else {
     mprotect_full_page(src, size, PROT_READ);
