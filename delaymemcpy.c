@@ -31,6 +31,14 @@ static pending_copy_t pending_copies[MAX_PENDING_COPIES] = {};
  */
 static long page_size = 0;
 
+/* Returns the pointer to the start of the page that contains the
+   specified memory address.
+ */
+static void *page_start(void *ptr) {
+  
+  return (void *) (((intptr_t) ptr) & -page_size);
+}
+
 // returns the number of pages within a pending object
 int count_pages(pending_copy_t *pend) {
   int count = 0;
@@ -39,15 +47,7 @@ int count_pages(pending_copy_t *pend) {
     page_index += page_size;
     count ++;
   }
-  return count;
-}
-
-/* Returns the pointer to the start of the page that contains the
-   specified memory address.
- */
-static void *page_start(void *ptr) {
-  
-  return (void *) (((intptr_t) ptr) & -page_size);
+  return count - 1;
 }
 
 /* Returns TRUE (non-zero) if the address 'ptr' is in the range of
@@ -70,8 +70,16 @@ static int address_in_range(void *start, size_t size, void *ptr) {
    FALSE (zero) otherwise.
  */
 static int address_in_page_range(void *start, size_t size, void *ptr) {
-  
-return address_in_range(page_start(ptr), page_start(start + size) + page_size - page_start(ptr), ptr);
+  if (address_in_range(page_start(start), page_size, ptr)) {
+    return 1;
+  }
+  if (address_in_range(page_start(start) + size, page_size, ptr)) {
+    return 1;
+  }
+  if (address_in_range(start, size, ptr)) {
+    return 1;
+  }
+  return 0;
 }
 
 /* mprotect requires the start address to be aligned with the page
@@ -82,7 +90,7 @@ return address_in_range(page_start(ptr), page_start(start + size) + page_size - 
 static int mprotect_full_page(void *ptr, size_t size, int prot) {
   
   void *page = page_start(ptr);
-  return mprotect(page, size + (ptr - page), prot);
+  return mprotect(page, size, prot);
 }
 
 /* Adds a pending copy object to the list of pending copies. If the
@@ -143,66 +151,66 @@ static void delay_memcpy_segv_handler(int signum, siginfo_t *info, void *context
     raise(SIGKILL);
   } else {
       // case 1: ptr is in page that contains src entirely
-      if (address_in_page_range(pend->src, 0, ptr) && address_in_page_range(pend->src + pend->size, 0, ptr)) {
-         mprotect_full_page(page_start(pend->src), 1, PROT_READ|PROT_WRITE);
-         mprotect_full_page(page_start(pend->dst), 1, PROT_READ|PROT_WRITE);
-         memcpy(pend->dst, pend->src, pend->size);
+      if (address_in_page_range(pend->src, 0, ptr) && address_in_page_range(pend->src + pend->size - 1, 0, ptr)) {
+         mprotect_full_page(pend->src, page_size, PROT_READ|PROT_WRITE);
+         mprotect_full_page(pend->dst, page_size, PROT_READ|PROT_WRITE);
+         memcpy(pend->dst, pend->src, page_size);
          pend->src = NULL;
          // case 2: ptr is in page that contains dst entirely
-      } else if (address_in_page_range(pend->dst, 0, ptr) && address_in_page_range(pend->dst + pend->size, 0, ptr)) {
-        mprotect_full_page(page_start(pend->src), 1, PROT_READ|PROT_WRITE);
-        mprotect_full_page(page_start(pend->dst), 1, PROT_READ|PROT_WRITE);
-        memcpy(pend->dst, pend->src, pend->size);
+      } else if (address_in_page_range(pend->dst, 0, ptr) && address_in_page_range(pend->dst + pend->size - 1, 0, ptr)) {
+        mprotect_full_page(pend->src, page_size, PROT_READ|PROT_WRITE);
+        mprotect_full_page(pend->dst, page_size, PROT_READ|PROT_WRITE);
+        memcpy(pend->dst, pend->src, page_size);
         pend->src = NULL;
         // case 3: ptr is in first page of src
       } else if (address_in_page_range(pend->src, 0, ptr)) {
-        mprotect_full_page(page_start(pend->src), 1, PROT_READ|PROT_WRITE);
-        mprotect_full_page(page_start(pend->dst), 1, PROT_READ|PROT_WRITE);
-        memcpy(pend->dst, pend->src, page_start(ptr) + page_size - pend->src);
+        mprotect_full_page(pend->src, page_size, PROT_READ|PROT_WRITE);
+        mprotect_full_page(pend->dst, page_size, PROT_READ|PROT_WRITE);
+        memcpy(pend->dst, pend->src, page_size);
         pend->count++;
         if (pend->count == count_pages(pend)) {
           pend->src = NULL;
         }
         // case 4: ptr is in first page of dst
       } else if (address_in_page_range(pend->dst, 0, ptr)) {
-        mprotect_full_page(page_start(pend->src), 1, PROT_READ|PROT_WRITE);
-        mprotect_full_page(page_start(pend->dst), 1, PROT_READ|PROT_WRITE);
-        memcpy(pend->dst, pend->src, page_start(ptr) + page_size - pend->dst);
+        mprotect_full_page(pend->src, page_size, PROT_READ|PROT_WRITE);
+        mprotect_full_page(pend->dst, page_size, PROT_READ|PROT_WRITE);
+        memcpy(pend->dst, pend->src, page_size);
         pend->count++;
         if (pend->count == count_pages(pend)) {
           pend->src = NULL;
         }
         // case 5: ptr is in last page of src
       } else if (address_in_page_range(pend->src + pend->size, 0, ptr)) {
-        mprotect_full_page(page_start(pend->src + pend->size), 1, PROT_READ|PROT_WRITE);
-        mprotect_full_page(page_start(pend->dst + pend->size), 1, PROT_READ|PROT_WRITE);
-        memcpy(page_start(pend->dst + pend->size), page_start(ptr), pend->src + pend->size - page_start(ptr));
+        mprotect_full_page(pend->src + pend->size, page_size, PROT_READ|PROT_WRITE);
+        mprotect_full_page(pend->dst + pend->size, page_size, PROT_READ|PROT_WRITE);
+        memcpy(page_start(pend->dst + pend->size), page_start(ptr), page_size);
         pend->count++;
         if (pend->count == count_pages(pend)) {
           pend->src = NULL;
         }
         // case 6: ptr is in last page of dst
       } else if (address_in_page_range(pend->dst + pend->size, 0, ptr)) {
-        mprotect_full_page(page_start(pend->src + pend->size), 1, PROT_READ|PROT_WRITE);
-        mprotect_full_page(page_start(pend->dst + pend->size), 1, PROT_READ|PROT_WRITE);
-        memcpy(page_start(ptr), page_start(pend->src + pend->size), pend->dst + pend->size - page_start(ptr));
+        mprotect_full_page(pend->src + pend->size, page_size, PROT_READ|PROT_WRITE);
+        mprotect_full_page(pend->dst + pend->size, page_size, PROT_READ|PROT_WRITE);
+        memcpy(page_start(ptr), page_start(pend->src + pend->size), page_size);
         pend->count++;
         if (pend->count == count_pages(pend)) {
           pend->src = NULL;
         }
         // case 7: ptr is within range of src, but not on first or last page
       } else if (address_in_range(pend->dst, pend->size, ptr)) {
-        mprotect_full_page(page_start(ptr), 1, PROT_READ|PROT_WRITE);
-        mprotect_full_page(page_start(ptr - pend->src + pend->dst), 1, PROT_READ|PROT_WRITE);
-        memcpy(page_start(ptr), page_start(ptr) - pend->src + pend->dst, page_size);
+        mprotect_full_page(ptr, page_size, PROT_READ|PROT_WRITE);
+        mprotect_full_page(ptr - pend->src + pend->dst, page_size, PROT_READ|PROT_WRITE);
+        memcpy(page_start(ptr, page_start(ptr) - pend->src + pend->dst, page_size);
         pend->count++;
         if (pend->count == count_pages(pend)) {
           pend->src = NULL;
         }
         // case 8: ptr is within range of dst, but not on first or last page
       } else if (address_in_range(pend->src, pend->size, ptr)) {
-        mprotect_full_page(page_start(ptr), 1, PROT_READ|PROT_WRITE);
-        mprotect_full_page(page_start(ptr - pend->dst + pend->src), 1, PROT_READ|PROT_WRITE);
+        mprotect_full_page(ptr, page_size, PROT_READ|PROT_WRITE);
+        mprotect_full_page(ptr - pend->dst + pend->src, page_size, PROT_READ|PROT_WRITE);
         memcpy(page_start(ptr) - pend->dst + pend->src, page_start(ptr), page_size);
         pend->count++;
         if (pend->count == count_pages(pend)) {
