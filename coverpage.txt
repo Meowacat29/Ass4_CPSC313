@@ -1,0 +1,39 @@
+                 University of British Columbia
+                 Department of Computer Science 
+                         CPSC 313
+                     Summer 2017, Term 1
+
+                      Assignment 4
+
+
+
+
+By typing my/our name(s) and student number(s)s in the list below,
+I/we certify that the work in the attached assignment was performed
+ONLY BY ME/US except the parts that have been properly acknowledged in
+the assignment and below. In addition, we indicate that we are fully
+aware of the rules and consequences of plagiarism, as set forth by the
+Department of Computer Science and the University of British Columbia.
+
+Adding the cover page is the last thing you are to do as part of the
+assignment submission process. If you make changes after submitting
+this file then you should make a minor change to the file, such as
+adding a comment in the Acknowledgement section and then resubmit the
+file.
+
+
+STUDENT  1
+Name : Nikhil Agarwal
+St. No: 53835138
+Unix Id : 501(TheNik) 
+Email: nikhil.agarwal@alumni.ubc.ca
+
+
+STUDENT  2
+Name : Victor Li
+St. No: 40394141
+Unix Id : 502(victor)
+Email: kingv30@gmail.com
+
+
+ACKNOWLEDGMENTS :
