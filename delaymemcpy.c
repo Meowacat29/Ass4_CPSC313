@@ -144,7 +144,6 @@ static void delay_memcpy_segv_handler(int signum, siginfo_t *info, void *context
         memcpy(pend->dst, pend->src, pend->size);
         // case 3: ptr is in first page of src
       } else if (address_in_page_range(pend->src, 0, ptr)) {
-        mprotect_full_page()
         memcpy(pend->dst, pend->src, page_start(ptr) + page_size - pend->src);
         // case 4: ptr is in first page of dst
       } else if (address_in_page_range(pend->dst, 0, ptr)) {
