@@ -31,6 +31,17 @@ static pending_copy_t pending_copies[MAX_PENDING_COPIES] = {};
  */
 static long page_size = 0;
 
+// returns the number of pages within a pending object
+int count_pages(pending_copy_t *pend) {
+  int count = 0;
+  intptr_t page_index = page_start(pend->src);
+  while (page_index < page_start(pend->src + pend->size) + page_size) {
+    page_index += page_size;
+    count ++;
+  }
+  return count;
+}
+
 /* Returns the pointer to the start of the page that contains the
    specified memory address.
  */
@@ -199,17 +210,6 @@ static void delay_memcpy_segv_handler(int signum, siginfo_t *info, void *context
         }
       } 
   } 
-}
-
-// returns the number of pages within a pending object
-int count_pages(pending_copy_t *pend) {
-  int count = 0;
-  int page_index = page_start(pend->src);
-  while (page_index < page_start(pend->src + pend->size) + page_size) {
-    page_index += page_size;
-    count ++;
-  }
-  return count;
 }
 
 /* Initializes the data structures and global variables used in the
