@@ -132,15 +132,19 @@ static void delay_memcpy_segv_handler(int signum, siginfo_t *info, void *context
     while (pend != NULL) {
       // case 1: ptr is in page that contains src entirely
       if (address_in_page_range(pend->src, 0, ptr) && address_in_page_range(pend->src + pend->size, 0, ptr)) {
-        free_copy(pend);
-        memcpy(pend->dest, pend->src, pend->size);
+         mprotect_full_page(pend->src, pend->size, PROT_READ|PROT_WRITE);
+         mprotect_full_page(pend->dst, pend->size, PROT_READ|PROT_WRITE);
+         pend->src = NULL;
+         memcpy(pend->dst, pend->src, pend->size);
          // case 2: ptr is in page that contains dst entirely
       } else if (address_in_page_range(pend->dst, 0, ptr) && address_in_page_range(pend->dst + pend->size, 0, ptr)) {
-        free_copy(pend);
-        restore_access(pend);
-        memcpy(pend->dest, pend->src, pend->size);
+        mprotect_full_page(pend->src, pend->size, PROT_READ|PROT_WRITE);
+        mprotect_full_page(pend->dst, pend->size, PROT_READ|PROT_WRITE);
+        pend->src = NULL;
+        memcpy(pend->dst, pend->src, pend->size);
         // case 3: ptr is in first page of src
       } else if (address_in_page_range(pend->src, 0, ptr)) {
+        free_copy(pend->src, 0, PROT_READ|PROT_WRITE);
         memcpy(pend->dst, pend->src, page_start(ptr) + page_size - pend->src);
         // case 4: ptr is in first page of dst
       } else if (address_in_page_range(pend->dst, 0, ptr)) {
@@ -161,13 +165,6 @@ static void delay_memcpy_segv_handler(int signum, siginfo_t *info, void *context
       pend = get_pending_copy(ptr);
     }
   } 
-}
-
-void free_copy(pending_copy_t pend) {
-  mprotect_full_page(pend->src, pend->size, PROT_READ|PROT_WRITE);
-  mprotect_full_page(pend->dst, pend->size, PROT_READ|PROT_WRITE);
-
-  pend->src = NULL;
 }
 
 /* Initializes the data structures and global variables used in the
