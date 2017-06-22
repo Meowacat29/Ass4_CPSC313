@@ -19,6 +19,7 @@ typedef struct pending_copy {
   void *src;
   void *dst;
   size_t size;
+  int count;
   
 } pending_copy_t;
 
@@ -85,6 +86,7 @@ static int add_pending_copy(void *dst, void *src, size_t size) {
       pending_copies[i].src = src;
       pending_copies[i].dst = dst;
       pending_copies[i].size = size;
+      pending_copies[i].count = 0;
       return 1;
     }
   }
@@ -129,7 +131,6 @@ static void delay_memcpy_segv_handler(int signum, siginfo_t *info, void *context
     write(2, "Segmentation fault!\n", 20);
     raise(SIGKILL);
   } else {
-    //while (pend != NULL) {
       // case 1: ptr is in page that contains src entirely
       if (address_in_page_range(pend->src, 0, ptr) && address_in_page_range(pend->src + pend->size, 0, ptr)) {
          mprotect_full_page(page_start(pend->src), 1, PROT_READ|PROT_WRITE);
@@ -147,41 +148,68 @@ static void delay_memcpy_segv_handler(int signum, siginfo_t *info, void *context
         mprotect_full_page(page_start(pend->src), 1, PROT_READ|PROT_WRITE);
         mprotect_full_page(page_start(pend->dst), 1, PROT_READ|PROT_WRITE);
         memcpy(pend->dst, pend->src, page_start(ptr) + page_size - pend->src);
-        pend->src = NULL;
+        pend->count++;
+        if (pend->count == count_pages(pend)) {
+          pend->src = NULL;
+        }
         // case 4: ptr is in first page of dst
       } else if (address_in_page_range(pend->dst, 0, ptr)) {
         mprotect_full_page(page_start(pend->src), 1, PROT_READ|PROT_WRITE);
         mprotect_full_page(page_start(pend->dst), 1, PROT_READ|PROT_WRITE);
         memcpy(pend->dst, pend->src, page_start(ptr) + page_size - pend->dst);
-        pend->src = NULL;
+        pend->count++;
+        if (pend->count == count_pages(pend)) {
+          pend->src = NULL;
+        }
         // case 5: ptr is in last page of src
       } else if (address_in_page_range(pend->src + pend->size, 0, ptr)) {
         mprotect_full_page(page_start(pend->src + pend->size), 1, PROT_READ|PROT_WRITE);
         mprotect_full_page(page_start(pend->dst + pend->size), 1, PROT_READ|PROT_WRITE);
         memcpy(page_start(pend->dst + pend->size), page_start(ptr), pend->src + pend->size - page_start(ptr));
-        pend->src = NULL;
+        pend->count++;
+        if (pend->count == count_pages(pend)) {
+          pend->src = NULL;
+        }
         // case 6: ptr is in last page of dst
       } else if (address_in_page_range(pend->dst + pend->size, 0, ptr)) {
         mprotect_full_page(page_start(pend->src + pend->size), 1, PROT_READ|PROT_WRITE);
         mprotect_full_page(page_start(pend->dst + pend->size), 1, PROT_READ|PROT_WRITE);
         memcpy(page_start(ptr), page_start(pend->src + pend->size), pend->dst + pend->size - page_start(ptr));
-        pend->src = NULL;
+        pend->count++;
+        if (pend->count == count_pages(pend)) {
+          pend->src = NULL;
+        }
         // case 7: ptr is within range of src, but not on first or last page
       } else if (address_in_range(pend->dst, pend->size, ptr)) {
         mprotect_full_page(page_start(ptr), 1, PROT_READ|PROT_WRITE);
         mprotect_full_page(page_start(ptr - pend->src + pend->dst), 1, PROT_READ|PROT_WRITE);
         memcpy(page_start(ptr), page_start(ptr) - pend->src + pend->dst, page_size);
-        pend->src = NULL;
+        pend->count++;
+        if (pend->count == count_pages(pend)) {
+          pend->src = NULL;
+        }
         // case 8: ptr is within range of dst, but not on first or last page
       } else if (address_in_range(pend->src, pend->size, ptr)) {
         mprotect_full_page(page_start(ptr), 1, PROT_READ|PROT_WRITE);
         mprotect_full_page(page_start(ptr - pend->dst + pend->src), 1, PROT_READ|PROT_WRITE);
         memcpy(page_start(ptr) - pend->dst + pend->src, page_start(ptr), page_size);
-        pend->src = NULL;
+        pend->count++;
+        if (pend->count == count_pages(pend)) {
+          pend->src = NULL;
+        }
       } 
-      //pend = get_pending_copy(ptr);
-    //}
   } 
+}
+
+// returns the number of pages within a pending object
+int count_pages(pending_copy_t *pend) {
+  int count = 0;
+  int page_index = page_start(pend->src);
+  while (page_index < page_start(pend->src + pend->size) + page_size) {
+    page_index += page_size;
+    count ++;
+  }
+  return count;
 }
 
 /* Initializes the data structures and global variables used in the
